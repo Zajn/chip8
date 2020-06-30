@@ -46,34 +46,64 @@ class Disassemble
     end
   end
 
+  # TODO: I have the usage of low/high nibble backward I think
   def decode(opcode)
     low_nibble = (opcode[0] >> 4)
     high_nibble = (opcode[0] & 0x0F)
 
     case low_nibble
     when 0x00
-      puts format('0 not implemented yet')
+      if opcode[1] == 0xE0
+        puts format('%<op>-10s', { op: 'CLS' })
+      elsif opcode[1] == 0XEE
+        puts format('%<op>-10s', { op: 'RET' })
+      else
+        puts 'Unknown opcode'
+      end
     when 0x01
-      puts format('1 not implemented yet')
+      puts format('%<op>-10s $%<addr>01x%<addr2>02x', op: 'JMP', addr: high_nibble, addr2: opcode[1])
     when 0x02
-      puts format('2 not implemented yet')
+      puts format('%<op>-10s $%<addr>01x%<addr2>02x', op: 'CALL', addr: high_nibble, addr2: opcode[1])
     when 0x03
-      puts format('3 not implemented yet')
+      puts format('%<op>-10s V%<variable>1x, #$%<value>02x', op: 'SKIP.EQ', variable: high_nibble, value: opcode[1])
     when 0x04
-      puts format('4 not implemented yet')
+      puts format('%<op>-10s V%<variable>1x, #$%<value>02x', op: 'SKIP.NE', variable: high_nibble, value: opcode[1])
     when 0x05
-      puts format('5 not implemented yet')
+      puts format('%<op>-10s V%<variable_x>1x, V%<variable_y>1x', op: 'SKIP.EQ', variable_x: high_nibble, variable_y: opcode[1] >> 4)
     when 0x06
-      puts format('%<op>-10s V%<variable>01x, #$%<arg>02x', { op: 'MVI', variable: high_nibble, arg: opcode[1] })
+      puts format('%<op>-10s V%<variable>01x, #$%<arg>02x', op: 'MVI', variable: high_nibble, arg: opcode[1])
     when 0x07
       puts format('7 not implemented yet')
     when 0x08
-      puts format('8 not implemented yet')
+      code = opcode[1] & 0x0F
+      op = ''
+      case code
+      when 0x00
+        op = 'MOV'
+      when 0x01
+        op = 'OR'
+      when 0x02
+        op = 'AND'
+      when 0x03
+        op = 'XOR'
+      when 0x04
+        op = 'ADD.'
+      when 0x05
+        op = 'SUB.'
+      when 0x06
+        op = 'SHR.'
+      when 0x07
+        op = 'SUBB.'
+      when 0x0E
+        op = 'SHL.'
+      end
+      puts format('%<op>-10s V%<variable_x>1x, V%<variable_y>1x', op: op, variable_x: high_nibble, variable_y: opcode[1] >> 4)
     when 0x09
-      puts format('9 not implemented yet')
+      puts format('%<op>-10s V%<variable_x>1x, V%<variable_y>1x', op: 'SKIP.NE', variable_x: high_nibble, variable_y: opcode[1] >> 4)
     when 0x0A
-      puts format('%<op>-10s I, #$%<hi_addr>x%<arg>x', { op: 'MVI', hi_addr: high_nibble, arg: opcode[1] })
+      puts format('%<op>-10s I, #$%<hi_addr>x%<arg>x', op: 'MVI', hi_addr: high_nibble, arg: opcode[1])
     when 0x0B
+      puts format('%<op>-10s $%<addr>01x%<addr2>02x(V0)', op: 'JMP', addr: high_nibble, addr2: opcode[1])
       puts format('B not implemented yet')
     when 0x0C
       puts format('C not implemented yet')
