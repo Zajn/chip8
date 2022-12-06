@@ -41,14 +41,11 @@ class Chip8
   def run
     running = true
     @pc = START_ADDR
-    debug = File.new('debug.txt', 'w')
 
     Kernel.trap("INT") { running = false }
 
     while running
       instruction = fetch
-
-      debug.puts(format('%<pc>04x %<a>02x %<b>02x ', { pc: @pc, a: instruction[0], b: instruction[1]}))
       decode(instruction)
     end
   end
@@ -110,7 +107,7 @@ class Chip8
     y = get_register(vy) % 32
     set_register(0xf, 0)
 
-    (0..n).each do |row|
+    n.times do |row|
       # 1. Get `row` byte, offset from I
       # 2. loop through pixels
       # # 1. If current pixel is on (1), and pixel at X,Y is on, turn off pixel and  VF=1
@@ -118,9 +115,10 @@ class Chip8
       # # 2. If right-edge of screen is reached, stop drawing this row
       # # 3. increment x
       # 3. Increment Y
+      x = get_register(vx) % 64
       pixels = memory[i + row]
-      8.times do |bit|
-        break if x + bit > 63
+      8.times.reverse_each do |bit|
+        # TODO: Clip sprites that go past edge of screen
 
         if pixels[bit] == 1 && display[x][y] == 1
           display[x][y] = 0
@@ -128,7 +126,10 @@ class Chip8
         elsif pixels[bit] == 1 && display[x][y].zero?
           display[x][y] = 1
         end
+
+        x += 1
       end
+      y += 1
     end
   end
 
@@ -136,9 +137,27 @@ class Chip8
     @display = Array.new(64) { Array.new(32, 0) }
   end
 
+  def screen_to_file
+    f = File.new('display.txt', 'w')
+
+    32.times do |y|
+      64.times do |x|
+        if display[x][y] == 1
+          f.print "\u25A9"
+        else
+          f.print ' '
+        end
+      end
+
+      f.print "\n"
+    end
+
+    f.close
+  end
+
   def print_screen
-    64.times do |x|
-      32.times do |y|
+    32.times do |y|
+      64.times do |x|
         if display[x][y] == 1
           print "\u25A9"
         else
