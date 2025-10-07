@@ -116,6 +116,3 @@ class Disassemble
     end
   end
 end
-
-file_path, *_ignored = ARGV
-Disassemble.run(path_to_rom: file_path)
