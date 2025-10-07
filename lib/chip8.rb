@@ -1,20 +1,32 @@
 # frozen_string_literal: true
 
+require 'sdl2'
+require 'debug'
+require 'logger'
+
 class Chip8
   # Chip-8 programs conventionally start at 0x200; First 512 bytes
   # are reserved for the interpreter.
   START_ADDR = 0x200
+  ROWS = 32
+  COLS = 64
+  SCALE = 30
 
   attr_reader :stack, :sound_timer, :delay_timer,
               :V0, :V1, :V2, :V3, :V4, :V5, :V6, :V7, :V8, :V9,
-              :VA, :VB, :VC, :VD, :VE, :VF
+              :VA, :VB, :VC, :VD, :VE, :VF,
+              :logger
   attr_accessor :pc, :memory, :i, :display
 
+  SDL2.init(SDL2::INIT_EVERYTHING)
+
   def initialize
+    @logger = Logger.new($stdout, progname: 'chirb8')
+    @logger.warn!
     @stack = []
     @memory = Array.new(4096, 0)
     @pc = 0
-    @display = Array.new(64) { Array.new(32, 0) }
+    @display = Array.new(COLS) { Array.new(ROWS, 0) }
     @v = Array.new(0xf)
 
     load_rom('../ibm-logo.ch8')
@@ -22,9 +34,10 @@ class Chip8
   end
 
   def load_rom(path)
-    f = File.open(path)
+    f = File.open(File.expand_path(path, File.dirname(__FILE__)))
 
     pc = START_ADDR
+
     until f.eof?
       memory[pc] = f.readbyte
       pc += 1
@@ -42,12 +55,34 @@ class Chip8
     running = true
     @pc = START_ADDR
 
-    Kernel.trap("INT") { running = false }
+    Kernel.trap('INT') { running = false }
 
-    while running
+    window = SDL2::Window.create(
+      'Chirb8',
+      SDL2::Window::POS_CENTERED,
+      SDL2::Window::POS_CENTERED,
+      COLS * SCALE,
+      ROWS * SCALE,
+      SDL2::Window::Flags::ALLOW_HIGHDPI
+    )
+
+    @renderer = window.create_renderer(-1, 0)
+    @renderer.draw_color = [0, 0, 0]
+    @renderer.clear
+
+    loop do
+      while (ev = SDL2::Event.poll)
+        exit if ev.is_a?(SDL2::Event::KeyDown) && ev.scancode == SDL2::Key::Scan::ESCAPE
+        exit if ev.is_a?(SDL2::Event::Window) && ev.event == SDL2::Event::Window::CLOSE
+      end
       instruction = fetch
       decode(instruction)
+      render
     end
+  end
+
+  def create_renderer(window)
+    window.create_renderer(-1, 0)
   end
 
   def step
@@ -63,8 +98,7 @@ class Chip8
     n = low_nibble(instruction[1])
     nn = instruction[1]
     nnn = address(x, y, n)
-
-    # binding.break
+    logger.debug("OP: #{op}, x: #{x}, y: #{y}, n: #{n}, nn: #{nn}, nnn: #{nnn}")
 
     case op
     when 0x0
@@ -86,10 +120,7 @@ class Chip8
   end
 
   # TODO: Registers are 8-bit, so figure out what should happen if value is > 255
-  # TODO: Seriously, just use an instance variable called V and make it an array of len 15
   def set_register(register, value)
-    # puts "V#{register} := value"
-    # instance_variable_set("@V#{register}".to_sym, value)
     @v[register] = value
   end
 
@@ -98,13 +129,12 @@ class Chip8
   end
 
   def get_register(register)
-    # instance_variable_get("@V#{register}")
     @v[register]
   end
 
   def draw(vx, vy, n)
-    x = get_register(vx) % 64
-    y = get_register(vy) % 32
+    x = get_register(vx) % COLS
+    y = get_register(vy) % ROWS
     set_register(0xf, 0)
 
     n.times do |row|
@@ -115,7 +145,7 @@ class Chip8
       # # 2. If right-edge of screen is reached, stop drawing this row
       # # 3. increment x
       # 3. Increment Y
-      x = get_register(vx) % 64
+      x = get_register(vx) % COLS
       pixels = memory[i + row]
       8.times.reverse_each do |bit|
         # TODO: Clip sprites that go past edge of screen
@@ -133,8 +163,27 @@ class Chip8
     end
   end
 
+  def render
+    screen = display.transpose.flatten
+    0.upto(ROWS * COLS - 1) do |i|
+      x = i % COLS
+      y = i.fdiv(COLS).floor
+
+      draw_pixel(x, y) if screen[i].positive?
+    end
+
+    @renderer.present
+  end
+
+  def draw_pixel(x, y)
+    @renderer.draw_color = [255, 255, 255]
+    @renderer.fill_rect(
+      SDL2::Rect.new(x * SCALE, y * SCALE, SCALE, SCALE)
+    )
+  end
+
   def clear_screen
-    @display = Array.new(64) { Array.new(32, 0) }
+    @display = Array.new(COLS) { Array.new(ROWS, 0) }
   end
 
   def screen_to_file
