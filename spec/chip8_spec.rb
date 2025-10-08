@@ -21,4 +21,90 @@ RSpec.describe Chip8 do
       expect(memory.size).to eq(4096)
     end
   end
+
+  describe 'setting and getting registers' do
+    subject { described_class.new }
+
+
+  end
+
+  describe '#fetch' do
+    subject { described_class.new }
+
+    before do
+      subject.memory[0] = 0xBE
+      subject.memory[1] = 0xEF
+    end
+
+    it 'increments the program counter by 2' do
+      subject.fetch
+      expect(subject.pc).to eq 2
+    end
+
+    it 'returns a 2 byte instruction' do
+      instruction = subject.fetch
+      expect(instruction).to eq [0xBE, 0xEF]
+    end
+  end
+
+  describe '#decode' do
+    subject { described_class.new }
+
+    context '0 opcodes' do
+      let(:instruction) { [0x00, 0xE0] } # clear screen instruction
+
+      it 'returns clear screen' do
+        expect(subject.decode(instruction)).to eq 'clear screen'
+      end
+    end
+
+    context '1 opcodes' do
+      let(:instruction) { [0x13, 0x58] } # JMP NNN
+
+      it 'sets the pc to NNN' do
+        subject.decode(instruction)
+        expect(subject.pc).to eq 0x358
+      end
+    end
+
+    context '6 opcodes' do
+      let(:instruction) { [0x61, 0xFF] } # mov V1, 0xFF
+
+      it 'moves a value into the specified register' do
+        subject.decode(instruction)
+        expect(subject.V1).to eq 0xFF
+      end
+
+      it 'can set every register' do
+        0x60.upto(0x6F) do |reg|
+          instruction[0] = reg
+          subject.decode(instruction)
+          reg_number = reg & 0x0F
+          expect(subject.get_register(reg_number)).to eq 0xFF
+        end
+      end
+    end
+
+    context '7 opcodes' do
+      let(:instruction) { [0x71, 0x2] } # add V1, 0x02
+
+      before do
+        subject.set_register(1, 0x2)
+      end
+
+      it 'adds the value to the register' do
+        subject.decode(instruction)
+        expect(subject.V1).to eq 0x4
+      end
+    end
+
+    context 'A opcodes' do
+      let(:instruction) { [0xA0, 0x45] }
+
+      it 'sets I to the given value' do
+        subject.decode(instruction)
+        expect(subject.i).to eq 0x045
+      end
+    end
+  end
 end
