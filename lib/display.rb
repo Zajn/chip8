@@ -25,11 +25,14 @@ class Display
   end
 
   def render
-    texture = renderer.create_texture_from(frame_to_surface)
+    surface = frame_to_surface
+    texture = renderer.create_texture_from(surface)
     renderer.draw_color = WHITE
     src_rect = SDL2::Rect.new(0, 0, WIDTH, HEIGHT)
     renderer.copy(texture, src_rect, nil)
     renderer.present
+    surface.destroy
+    texture.destroy
   end
 
   def clear
