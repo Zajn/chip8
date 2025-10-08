@@ -2,32 +2,26 @@
 
 require 'sdl2'
 require 'debug'
-require 'logger'
+require_relative './display'
 
 class Chip8
   # Chip-8 programs conventionally start at 0x200; First 512 bytes
   # are reserved for the interpreter.
   START_ADDR = 0x200
-  ROWS = 32
-  COLS = 64
-  SCALE = 30
 
   attr_reader :stack, :sound_timer, :delay_timer,
               :V0, :V1, :V2, :V3, :V4, :V5, :V6, :V7, :V8, :V9,
-              :VA, :VB, :VC, :VD, :VE, :VF,
-              :logger
+              :VA, :VB, :VC, :VD, :VE, :VF
   attr_accessor :pc, :memory, :i, :display
 
   SDL2.init(SDL2::INIT_EVERYTHING)
 
   def initialize
-    @logger = Logger.new($stdout, progname: 'chirb8')
-    @logger.warn!
     @stack = []
     @memory = Array.new(4096, 0)
     @pc = 0
-    @display = Array.new(COLS) { Array.new(ROWS, 0) }
     @v = Array.new(0xf)
+    @display = Display.new
 
     load_rom('../ibm-logo.ch8')
     @pc = START_ADDR
@@ -57,19 +51,6 @@ class Chip8
 
     Kernel.trap('INT') { running = false }
 
-    window = SDL2::Window.create(
-      'Chirb8',
-      SDL2::Window::POS_CENTERED,
-      SDL2::Window::POS_CENTERED,
-      COLS * SCALE,
-      ROWS * SCALE,
-      SDL2::Window::Flags::ALLOW_HIGHDPI
-    )
-
-    @renderer = window.create_renderer(-1, 0)
-    @renderer.draw_color = [0, 0, 0]
-    @renderer.clear
-
     loop do
       while (ev = SDL2::Event.poll)
         exit if ev.is_a?(SDL2::Event::KeyDown) && ev.scancode == SDL2::Key::Scan::ESCAPE
@@ -79,10 +60,6 @@ class Chip8
       decode(instruction)
       render
     end
-  end
-
-  def create_renderer(window)
-    window.create_renderer(-1, 0)
   end
 
   def step
@@ -98,7 +75,6 @@ class Chip8
     n = low_nibble(instruction[1])
     nn = instruction[1]
     nnn = address(x, y, n)
-    logger.debug("OP: #{op}, x: #{x}, y: #{y}, n: #{n}, nn: #{nn}, nnn: #{nnn}")
 
     case op
     when 0x0
@@ -133,8 +109,8 @@ class Chip8
   end
 
   def draw(vx, vy, n)
-    x = get_register(vx) % COLS
-    y = get_register(vy) % ROWS
+    x = get_register(vx) % Display::WIDTH
+    y = get_register(vy) % Display::HEIGHT
     set_register(0xf, 0)
 
     n.times do |row|
@@ -145,16 +121,16 @@ class Chip8
       # # 2. If right-edge of screen is reached, stop drawing this row
       # # 3. increment x
       # 3. Increment Y
-      x = get_register(vx) % COLS
+      x = get_register(vx) % Display::WIDTH
       pixels = memory[i + row]
       8.times.reverse_each do |bit|
         # TODO: Clip sprites that go past edge of screen
 
-        if pixels[bit] == 1 && display[x][y] == 1
-          display[x][y] = 0
+        if pixels[bit] == 1 && display.pixels[x][y] == 1
+          display.pixels[x][y] = 0
           set_register(0xf, 1)
-        elsif pixels[bit] == 1 && display[x][y].zero?
-          display[x][y] = 1
+        elsif pixels[bit] == 1 && display.pixels[x][y].zero?
+          display.pixels[x][y] = 1
         end
 
         x += 1
@@ -163,59 +139,8 @@ class Chip8
     end
   end
 
-  def render
-    screen = display.transpose.flatten
-    0.upto(ROWS * COLS - 1) do |i|
-      x = i % COLS
-      y = i.fdiv(COLS).floor
-
-      draw_pixel(x, y) if screen[i].positive?
-    end
-
-    @renderer.present
-  end
-
-  def draw_pixel(x, y)
-    @renderer.draw_color = [255, 255, 255]
-    @renderer.fill_rect(
-      SDL2::Rect.new(x * SCALE, y * SCALE, SCALE, SCALE)
-    )
-  end
-
   def clear_screen
-    @display = Array.new(COLS) { Array.new(ROWS, 0) }
-  end
-
-  def screen_to_file
-    f = File.new('display.txt', 'w')
-
-    32.times do |y|
-      64.times do |x|
-        if display[x][y] == 1
-          f.print "\u25A9"
-        else
-          f.print ' '
-        end
-      end
-
-      f.print "\n"
-    end
-
-    f.close
-  end
-
-  def print_screen
-    32.times do |y|
-      64.times do |x|
-        if display[x][y] == 1
-          print "\u25A9"
-        else
-          print " "
-        end
-      end
-
-      print "\n"
-    end
+    display.clear
   end
 
   private
@@ -239,5 +164,9 @@ class Chip8
 
   def seti(value)
     self.i = value
+  end
+
+  def render
+    display.render
   end
 end
