@@ -4,6 +4,8 @@ require 'sdl2'
 require 'debug'
 require_relative './display'
 
+class StackEmptyException < StandardError; end
+
 class Chip8
   # Chip-8 programs conventionally start at 0x200; First 512 bytes
   # are reserved for the interpreter.
@@ -23,8 +25,9 @@ class Chip8
     @v = Array.new(0xf)
     @display = Display.new
 
-    load_rom('../ibm-logo.ch8')
+    load_rom('../test_opcode.ch8')
     @pc = START_ADDR
+    @sp = stack.length
   end
 
   def load_rom(path)
@@ -68,6 +71,11 @@ class Chip8
     decode(instruction)
   end
 
+  #          ________________________
+  #  ______ |_____ nnn  _____   _____|
+  # | ins | |  x  |    |  y  | |  n  |
+  # b b b b b b b b |  b b b b b b b b
+  #
   def decode(instruction)
     op = high_nibble(instruction[0])
     x = low_nibble(instruction[0])
@@ -78,16 +86,56 @@ class Chip8
 
     case op
     when 0x0
-      case y
-      when 0xE
+      case nn
+      when 0xE0
         clear_screen
+      when 0xEE
+        ret
       end
     when 0x1
       jump(nnn)
+    when 0x2
+      subroutine(nnn)
+    when 0x3
+      skip_equal(get_register(x), nn)
+    when 0x4
+      skip_not_equal(get_register(x), nn)
+    when 0x5
+      skip_equal(get_register(x), get_register(y))
     when 0x6
       set_register(x, nn)
     when 0x7
       add(x, nn)
+    when 0x8
+      case n
+      when 0x0
+        set_register(x, get_register(y))
+      when 0x1
+        set_register(
+          x,
+          get_register(x) | get_register(y)
+        )
+      when 0x2
+        set_register(
+          x,
+          get_register(x) & get_register(y)
+        )
+      when 0x3
+        set_register(
+          x,
+          get_register(x) ^ get_register(y)
+        )
+      # when 0x4
+      #   set_register(
+      #     x,
+      #     get_register(x) + get_register(y)
+      #   )
+
+      # when 0x5
+      # when 0x6
+      # when 0x7
+      # when 0xE
+      end
     when 0xA
       seti(nnn)
     when 0xD
@@ -137,6 +185,27 @@ class Chip8
       end
       y += 1
     end
+  end
+
+  def ret
+    raise StackEmptyException if stack.empty?
+
+    @pc = @stack.pop
+    @sp -= 1
+  end
+
+  def subroutine(addr)
+    @sp += 1
+    @stack.push(@pc)
+    @pc = addr
+  end
+
+  def skip_equal(val1, val2)
+    @pc += 2 if val1 == val2
+  end
+
+  def skip_not_equal(val1, val2)
+    @pc += 2 if val1 != val2
   end
 
   def clear_screen
