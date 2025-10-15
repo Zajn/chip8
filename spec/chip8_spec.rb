@@ -16,29 +16,28 @@ RSpec.describe Chip8 do
   end
 
   describe '#initialize' do
+    subject(:cpu) { Chip8.new }
     it 'initializes 4KB of memory' do
-      memory = Chip8.new.memory
-      expect(memory.size).to eq(4096)
+      expect(cpu.memory.size).to eq(4096)
     end
-  end
 
-  describe 'setting and getting registers' do
-    subject { described_class.new }
-
-
+    it 'sets the program counter to the Chip8 start address' do
+      expect(cpu.pc).to eq 0x200
+    end
   end
 
   describe '#fetch' do
-    subject { described_class.new }
+    subject(:cpu) { described_class.new }
 
     before do
-      subject.memory[0] = 0xBE
-      subject.memory[1] = 0xEF
+      subject.memory[0x200] = 0xBE
+      subject.memory[0x201] = 0xEF
     end
 
     it 'increments the program counter by 2' do
-      subject.fetch
-      expect(subject.pc).to eq 2
+      prev_pc = cpu.pc
+      cpu.fetch
+      expect(cpu.pc).to eq(prev_pc + 2)
     end
 
     it 'returns a 2 byte instruction' do

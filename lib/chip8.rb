@@ -18,14 +18,14 @@ class Chip8
 
   SDL2.init(SDL2::INIT_EVERYTHING)
 
-  def initialize
+  def initialize(rom_path: nil)
     @stack = []
     @memory = Array.new(4096, 0)
     @pc = 0
     @v = Array.new(0xf)
     @display = Display.new
 
-    load_rom('../test_opcode.ch8')
+    load_rom(rom_path) unless rom_path.nil?
     @pc = START_ADDR
     @sp = stack.length
   end
@@ -105,7 +105,10 @@ class Chip8
     when 0x6
       set_register(x, nn)
     when 0x7
-      add(x, nn)
+      set_register(
+        x,
+        get_register(x) + nn
+      )
     when 0x8
       case n
       when 0x0
