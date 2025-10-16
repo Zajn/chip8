@@ -23,3 +23,13 @@ task :test_opcodes do |_t|
     rom_path: Pathname.new('./test_opcode.ch8').expand_path
   ).run
 end
+
+begin
+  require 'rspec/core/rake_task'
+
+  RSpec::Core::RakeTask.new(:spec)
+  task default: :spec
+rescue LoadError => e
+  p 'RSpec does not exist in this environment'
+  p e
+end
