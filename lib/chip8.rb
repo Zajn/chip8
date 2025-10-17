@@ -11,9 +11,7 @@ class Chip8
   # are reserved for the interpreter.
   START_ADDR = 0x200
 
-  attr_reader :stack, :sound_timer, :delay_timer,
-              :V0, :V1, :V2, :V3, :V4, :V5, :V6, :V7, :V8, :V9,
-              :VA, :VB, :VC, :VD, :VE, :VF
+  attr_reader :stack, :sound_timer, :delay_timer, :v
   attr_accessor :pc, :memory, :i, :display
 
   SDL2.init(SDL2::INIT_EVERYTHING)

@@ -8,12 +8,7 @@ RSpec.describe Chip8 do
   it { is_expected.to respond_to :sound_timer }
   it { is_expected.to respond_to :delay_timer }
   it { is_expected.to respond_to :pc }
-
-  it 'has 16 general purpose registers' do
-    0.upto(15) do |v|
-      expect(described_class.new).to respond_to "V#{v.to_s(16).upcase}".to_sym
-    end
-  end
+  it { is_expected.to respond_to :v }
 
   describe '#initialize' do
     subject(:cpu) { Chip8.new }
@@ -47,13 +42,20 @@ RSpec.describe Chip8 do
   end
 
   describe '#decode' do
-    subject { described_class.new }
+    subject(:cpu) { described_class.new }
 
     context '0 opcodes' do
       let(:instruction) { [0x00, 0xE0] } # clear screen instruction
+      let(:fake_display) { instance_double('Display') }
 
-      it 'returns clear screen' do
-        expect(subject.decode(instruction)).to eq 'clear screen'
+      before do
+        allow(fake_display).to receive(:clear)
+        cpu.display = fake_display
+      end
+
+      it 'clears the display' do
+        expect(fake_display).to receive(:clear)
+        cpu.decode(instruction)
       end
     end
 
@@ -61,8 +63,8 @@ RSpec.describe Chip8 do
       let(:instruction) { [0x13, 0x58] } # JMP NNN
 
       it 'sets the pc to NNN' do
-        subject.decode(instruction)
-        expect(subject.pc).to eq 0x358
+        cpu.decode(instruction)
+        expect(cpu.pc).to eq 0x358
       end
     end
 
@@ -70,16 +72,16 @@ RSpec.describe Chip8 do
       let(:instruction) { [0x61, 0xFF] } # mov V1, 0xFF
 
       it 'moves a value into the specified register' do
-        subject.decode(instruction)
-        expect(subject.V1).to eq 0xFF
+        cpu.decode(instruction)
+        expect(cpu.v[0x1]).to eq 0xFF
       end
 
       it 'can set every register' do
         0x60.upto(0x6F) do |reg|
           instruction[0] = reg
-          subject.decode(instruction)
+          cpu.decode(instruction)
           reg_number = reg & 0x0F
-          expect(subject.get_register(reg_number)).to eq 0xFF
+          expect(cpu.get_register(reg_number)).to eq 0xFF
         end
       end
     end
@@ -88,12 +90,12 @@ RSpec.describe Chip8 do
       let(:instruction) { [0x71, 0x2] } # add V1, 0x02
 
       before do
-        subject.set_register(1, 0x2)
+        cpu.set_register(1, 0x2)
       end
 
       it 'adds the value to the register' do
-        subject.decode(instruction)
-        expect(subject.V1).to eq 0x4
+        cpu.decode(instruction)
+        expect(cpu.v[0x1]).to eq 0x4
       end
     end
 
@@ -101,8 +103,8 @@ RSpec.describe Chip8 do
       let(:instruction) { [0xA0, 0x45] }
 
       it 'sets I to the given value' do
-        subject.decode(instruction)
-        expect(subject.i).to eq 0x045
+        cpu.decode(instruction)
+        expect(cpu.i).to eq 0x045
       end
     end
   end
