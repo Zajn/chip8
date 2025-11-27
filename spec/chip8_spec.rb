@@ -87,15 +87,15 @@ RSpec.describe Chip8 do
     end
 
     context '7 opcodes' do
-      let(:instruction) { [0x71, 0x2] } # add V1, 0x02
+      let(:instruction) { [0x76, 0xFF] }
 
       before do
-        cpu.set_register(1, 0x2)
+        cpu.set_register(6, 0x2B)
       end
 
       it 'adds the value to the register' do
         cpu.decode(instruction)
-        expect(cpu.v[0x1]).to eq 0x4
+        expect(cpu.v[0x6]).to eq 0x2A
       end
     end
 

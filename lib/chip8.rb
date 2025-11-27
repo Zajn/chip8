@@ -105,7 +105,7 @@ class Chip8
     when 0x7
       set_register(
         x,
-        get_register(x) + nn
+        (get_register(x) + nn) % 256
       )
     when 0x8
       case n
