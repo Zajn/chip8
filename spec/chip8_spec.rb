@@ -87,15 +87,24 @@ RSpec.describe Chip8 do
     end
 
     context '7 opcodes' do
-      let(:instruction) { [0x76, 0xFF] }
+      let(:instruction) { [0x76, 0x01] }
 
       before do
         cpu.set_register(6, 0x2B)
       end
 
+      context 'when result does not fit in 8-bits' do
+        let(:instruction) { [0x76, 0xFF] }
+
+        it 'wraps around from overflow' do
+          cpu.decode(instruction)
+          expect(cpu.v[0x6]).to eq 0x2A
+        end
+      end
+
       it 'adds the value to the register' do
         cpu.decode(instruction)
-        expect(cpu.v[0x6]).to eq 0x2A
+        expect(cpu.v[0x6]).to eq 0x2C
       end
     end
 
