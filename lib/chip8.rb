@@ -126,11 +126,17 @@ class Chip8
           x,
           get_register(x) ^ get_register(y)
         )
-      # when 0x4
-      #   set_register(
-      #     x,
-      #     get_register(x) + get_register(y)
-      #   )
+      when 0x4
+        temp = get_register(x) + get_register(y)
+        set_register(
+          x,
+          temp % 256
+        )
+        if temp > 255
+          set_register(0xF, 1)
+        else
+          set_register(0xF, 0)
+        end
 
       # when 0x5
       # when 0x6

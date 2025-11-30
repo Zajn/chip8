@@ -93,7 +93,7 @@ RSpec.describe Chip8 do
         cpu.set_register(6, 0x2B)
       end
 
-      context 'when result does not fit in 8-bits' do
+      context 'when result does not fit in 8 bits' do
         let(:instruction) { [0x76, 0xFF] }
 
         it 'wraps around from overflow' do
@@ -105,6 +105,34 @@ RSpec.describe Chip8 do
       it 'adds the value to the register' do
         cpu.decode(instruction)
         expect(cpu.v[0x6]).to eq 0x2C
+      end
+    end
+
+    context '8 opcodes' do
+      let(:instruction) { [0x81, 0x24] }
+
+      context 'result does not fit in 8 bits' do
+        before do
+          cpu.set_register(0x1, 0xFF)
+          cpu.set_register(0x2, 0x10)
+        end
+
+        it 'sets VF = 1' do
+          cpu.decode(instruction)
+          expect(cpu.get_register(0xF)).to eq 1
+        end
+      end
+
+      context 'result fits in 8 bits' do
+        before do
+          cpu.set_register(0x1, 0x20)
+          cpu.set_register(0x2, 0x10)
+        end
+
+        it 'sets VF = 0' do
+          cpu.decode(instruction)
+          expect(cpu.get_register(0xF)).to eq 0
+        end
       end
     end
 
