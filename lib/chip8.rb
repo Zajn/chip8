@@ -4,27 +4,28 @@ require 'sdl2'
 require 'debug'
 require_relative './display'
 
+class StackEmptyException < StandardError; end
+
 class Chip8
   # Chip-8 programs conventionally start at 0x200; First 512 bytes
   # are reserved for the interpreter.
   START_ADDR = 0x200
 
-  attr_reader :stack, :sound_timer, :delay_timer,
-              :V0, :V1, :V2, :V3, :V4, :V5, :V6, :V7, :V8, :V9,
-              :VA, :VB, :VC, :VD, :VE, :VF
+  attr_reader :stack, :sound_timer, :delay_timer, :v
   attr_accessor :pc, :memory, :i, :display
 
   SDL2.init(SDL2::INIT_EVERYTHING)
 
-  def initialize
+  def initialize(rom_path: nil)
     @stack = []
     @memory = Array.new(4096, 0)
     @pc = 0
     @v = Array.new(0xf)
     @display = Display.new
 
-    load_rom('../ibm-logo.ch8')
+    load_rom(rom_path) unless rom_path.nil?
     @pc = START_ADDR
+    @sp = stack.length
   end
 
   def load_rom(path)
@@ -68,6 +69,11 @@ class Chip8
     decode(instruction)
   end
 
+  #          ________________________
+  #  ______ |_____ nnn  _____   _____|
+  # | ins | |  x  |    |  y  | |  n  |
+  # b b b b b b b b |  b b b b b b b b
+  #
   def decode(instruction)
     op = high_nibble(instruction[0])
     x = low_nibble(instruction[0])
@@ -78,20 +84,137 @@ class Chip8
 
     case op
     when 0x0
-      case y
-      when 0xE
+      case nn
+      when 0xE0
         clear_screen
+      when 0xEE
+        ret
       end
     when 0x1
       jump(nnn)
+    when 0x2
+      subroutine(nnn)
+    when 0x3
+      skip_equal(get_register(x), nn)
+    when 0x4
+      skip_not_equal(get_register(x), nn)
+    when 0x5
+      skip_equal(get_register(x), get_register(y))
     when 0x6
       set_register(x, nn)
     when 0x7
-      add(x, nn)
+      set_register(
+        x,
+        (get_register(x) + nn) % 256
+      )
+    when 0x8
+      case n
+      when 0x0
+        set_register(x, get_register(y))
+      when 0x1
+        set_register(
+          x,
+          get_register(x) | get_register(y)
+        )
+      when 0x2
+        set_register(
+          x,
+          get_register(x) & get_register(y)
+        )
+      when 0x3
+        set_register(
+          x,
+          get_register(x) ^ get_register(y)
+        )
+      when 0x4
+        temp = get_register(x) + get_register(y)
+        set_register(
+          x,
+          temp % 256
+        )
+        if temp > 255
+          set_register(0xF, 1)
+        else
+          set_register(0xF, 0)
+        end
+      when 0x5
+        if get_register(x) > get_register(y)
+          set_register(0xF, 1)
+        else
+          set_register(0xF, 0)
+        end
+
+        set_register(x, (get_register(x) - get_register(y)) % 256)
+      when 0x6
+        if (get_register(x) & 0x1) == 1
+          set_register(0xF, 1)
+        else
+          set_register(0xF, 0)
+        end
+
+        set_register(x, get_register(x) >> 1)
+      when 0x7
+        if get_register(y) > get_register(x)
+          set_register(0xF, 1)
+        else
+          set_register(0xF, 0)
+        end
+
+        set_register(x, get_register(y) - get_register(x))
+      when 0xE
+        if (get_register(x) & 0x80) == 1
+          set_register(0xF, 1)
+        else
+          set_register(0xF, 0)
+        end
+
+        set_register(x, (get_register(x) << 1) % 256)
+      else
+        puts "Could not match: op: #{op}, x: #{x}, y: #{y}, n: #{n}"
+      end
+    when 0x9
+      if n.zero?
+        skip_not_equal(
+          get_register(x),
+          get_register(y)
+        )
+      end
     when 0xA
       seti(nnn)
+    when 0xB
+      jump(
+        get_register(0) + nnn
+      )
+    when 0xC
+      set_register(x, prng.rand(1..255) & nn)
     when 0xD
       draw(x, y, n)
+    when 0xE
+      puts "SKP Vx"
+    when 0xF
+      case nn
+      when 0x07
+        set_register(x, delay_timer)
+      when 0x15
+        @delay_timer = get_register(x)
+      when 0x33
+        register = get_register(x)
+        hundreds = register / 100
+        tens = (register / 10) % 10
+        ones = register % 10
+
+        @memory[i] = hundreds
+        @memory[i + 1] = tens
+        @memory[i + 2] = ones
+      when 0x55
+        0.upto(x) do |index|
+          @memory[i + index] = get_register(index)
+        end
+      when 0x65
+        0.upto(x) do |index|
+          set_register(index, @memory[i + index])
+        end
+      end
     end
   end
 
@@ -139,6 +262,27 @@ class Chip8
     end
   end
 
+  def ret
+    raise StackEmptyException if stack.empty?
+
+    @pc = @stack.pop
+    @sp -= 1
+  end
+
+  def subroutine(addr)
+    @sp += 1
+    @stack.push(@pc)
+    @pc = addr
+  end
+
+  def skip_equal(val1, val2)
+    @pc += 2 if val1 == val2
+  end
+
+  def skip_not_equal(val1, val2)
+    @pc += 2 if val1 != val2
+  end
+
   def clear_screen
     display.clear
   end
@@ -168,5 +312,9 @@ class Chip8
 
   def render
     display.render
+  end
+
+  def prng
+    @prng ||= Random.new
   end
 end
